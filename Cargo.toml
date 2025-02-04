@@ -1,0 +1,52 @@
+cargo-features = ["codegen-backend"]
+
+[package]
+name = "subnautica_desktop_aquarium"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy_registration = "0.2.4"
+bevy = { version = "0.15.1", default-features = false, features = [
+    "bevy_asset",
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_window",
+    "bevy_winit",
+    "multi_threaded",
+    "png",
+    "jpeg",
+    "webp",
+    "x11",
+    "wayland",
+] }
+leafwing-input-manager = "0.16"
+winit = "0.30"
+avian2d = "0.2.1"
+
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+codegen-backend = "cranelift"
+
+[profile.dev.build-override]
+codegen-backend = "llvm"
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+codegen-backend = "llvm"
+
+# Enable more optimization in the release profile at the cost of compile time.
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+incremental = false
+debug = false
+
+# Makes profiling work.
+[profile.profiling]
+inherits = "release"
+debug = true
