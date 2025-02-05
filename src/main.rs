@@ -24,7 +24,8 @@ schedule! {
         [run_every(Duration::from_secs_f32(1. / 30.))]
         Fluid (
             Pressure,
-            Forces,
+            GetAcceleration,
+            ApplyAcceleration
         )
     )
 }
@@ -39,9 +40,10 @@ fn main() {
             }),
             RegistrationPlugin,
             PhysicsPlugins::default().with_length_unit(30.),
-            PhysicsDebugPlugin::default(),
+            //PhysicsDebugPlugin::default(),
         ))
         .insert_resource(ClearColor(Color::NONE))
         .insert_resource(Gravity(Vec2::new(0., -100.)))
+        .insert_resource(SubstepCount(1))
         .run();
 }

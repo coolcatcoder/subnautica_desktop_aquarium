@@ -28,7 +28,7 @@ fn spawn(
         return;
     }
 
-    if !actions.just_pressed(&Action::Use) {
+    if !actions.pressed(&Action::Use) {
         return;
     }
 
@@ -48,43 +48,81 @@ fn spawn(
                 custom_size: Some(Vec2::splat(20.)),
                 ..default()
             },
+            Friction {
+                dynamic_coefficient: 0.,
+                static_coefficient: 0.,
+                ..default()
+            },
+            LockedAxes::ROTATION_LOCKED,
         ))
-        .with_child((
-            Sensor,
-            Collider::circle(PRESSURE_RADIUS),
-            CollidingEntities::default(),
-        ));
+        .with_child((Sensor, Collider::circle(H), CollidingEntities::default()));
 }
 
-const PRESSURE_RADIUS: f32 = 80.;
-const PRESSURE_RADIUS_SQUARED: f32 = PRESSURE_RADIUS * PRESSURE_RADIUS;
-const POLY6: f32 = 4.
-    / (std::f32::consts::PI
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS);
-const GAS: f32 = 2000.;
-const REST_DENS: f32 = 300.;
-// Changed -10 to -30 chatgpt
-const SPIKY_GRAD: f32 = -30.
-    / (std::f32::consts::PI
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS
-        * PRESSURE_RADIUS);
-const VISC: f32 = 200.0;
+/*
+char* fname; /* File name */
+int nframes; /* Number of frames */
+int npframe; /* Steps per frame */
+float h; /* Particle size */
+float dt; /* Time step */
+float rho0; /* Reference density */
+float k; /* Bulk modulus */
+float mu; /* Viscosity */
+float g; /* Gravity strength */
+
+int n; /* Number of particles */
+float mass; /* Particle mass */
+float* restrict rho; /* Densities */
+float* restrict x; /* Positions */
+float* restrict vh; /* Velocities (half step) */
+float* restrict v; /* Velocities (full step) */
+float* restrict a; /* Acceleration */
+
+static void default_params(sim_param_t* params)
+{
+params->fname = "run.out";
+params->nframes = 400;
+params->npframe = 100;
+params->dt = 1e-4;
+params->h = 5e-2;
+params->rho0 = 1000;
+params->k = 1e3;
+params->mu = 0.1;
+params->g = 9.8;
+}
+*/
+
+// NAN means I'm not sure. Further research required.
+
+// Unsure.
+const MASS: f32 = 10.;
+
+// Unsure.
+// Appears to not effect rho that much?
+const H: f32 = 40.;
+const H2: f32 = H * H;
+const H8: f32 = (H2 * H2) * (H2 * H2);
+
+const C: f32 = 4. * MASS / std::f32::consts::PI / H8;
+const C0: f32 = MASS / std::f32::consts::PI / (H2 * H2);
+const CP: f32 = 15. * K;
+const CV: f32 = -40. * MU;
+
+// Unsure.
+const RHO0: f32 = 0.003;
+// Unsure.
+const K: f32 = 1000.;
+// Unsure.
+const MU: f32 = 0.1;
 
 #[derive(Component, Default)]
+#[require(AccelerationAccumulator)]
 struct Fluid {
+    // Density.
     rho: f32,
-    pressure: f32,
 }
+
+#[derive(Component, Default)]
+struct AccelerationAccumulator(Vec2);
 
 #[system(Update::Fluid::Pressure)]
 fn pressure(
@@ -103,36 +141,41 @@ fn pressure(
                 return;
             };
 
-            fluid.rho = 0.001;
+            fluid.rho = 0.;
             collisions.0.iter().for_each(|collision| {
-                let Ok(collider) = colliders.get(*collision) else {
+                let Ok(collider_transform) = colliders.get(*collision) else {
                     return;
                 };
 
-                let distance_squared = collider
-                    .translation
-                    .xy()
-                    .distance_squared(transform.translation.xy());
-                let precomputation = PRESSURE_RADIUS_SQUARED - distance_squared;
+                let dx = transform.translation.x - collider_transform.translation.x;
+                let dy = transform.translation.y - collider_transform.translation.y;
 
-                fluid.rho += POLY6 * (precomputation * precomputation * precomputation);
+                let r2 = dx * dx + dy * dy;
+                let z = H2 - r2;
+                if z > 0. {
+                    let rho_ij = C * z * z * z;
+                    // We can only do one of the 2 operations. Consider doubling the value, to make up for the missed return stroke?
+                    fluid.rho += rho_ij;
+                }
             });
-            fluid.pressure = GAS * (fluid.rho - REST_DENS);
+            //info!("rho: {}", fluid.rho)
         });
 }
 
-#[system(Update::Fluid::Forces)]
-fn forces(
-    mut particles: Query<(&mut LinearVelocity, &Fluid, &Transform, &Children)>,
+#[system(Update::Fluid::GetAcceleration)]
+fn get_acceleration(
+    mut particles: Query<(
+        &mut AccelerationAccumulator,
+        &LinearVelocity,
+        &Fluid,
+        &Transform,
+        &Children,
+    )>,
     collisions: Query<&CollidingEntities>,
-    colliders: Query<(&Fluid, &Transform)>,
-    time: Res<Time>,
+    colliders: Query<(&Fluid, &Transform, &LinearVelocity)>,
 ) {
-    let time_delta_seconds = time.delta_secs();
-
-    particles
-        .par_iter_mut()
-        .for_each(|(mut velocity, fluid, transform, children)| {
+    particles.par_iter_mut().for_each(
+        |(mut acceleration_accumulator, velocity, fluid, transform, children)| {
             // All fluid particles must have 1 child containing the density sensor.
             let child = children.first().unwrap();
 
@@ -141,34 +184,46 @@ fn forces(
                 return;
             };
 
-            let mut fpress = Vec2::ZERO;
-            let mut fvisc = Vec2::ZERO;
+            acceleration_accumulator.0 = Vec2::ZERO;
             collisions.0.iter().for_each(|collision| {
-                let Ok((collider_fluid, collider_transform)) = colliders.get(*collision) else {
+                let Ok((collider_fluid, collider_transform, collider_velocity)) =
+                    colliders.get(*collision)
+                else {
                     return;
                 };
 
-                let direction_unnormalised =
-                    collider_transform.translation.xy() - transform.translation.xy();
-                let distance = direction_unnormalised.length();
+                let dx = transform.translation.x - collider_transform.translation.x;
+                let dy = transform.translation.y - collider_transform.translation.y;
 
-                let precomputation = PRESSURE_RADIUS - distance;
+                let r2 = dx * dx + dy * dy;
+                if r2 < H2 {
+                    let q = r2.sqrt() / H;
+                    let u = 1. - q;
+                    let w0 = C0 * u / fluid.rho / collider_fluid.rho;
+                    let wp = w0 * CP * (fluid.rho + collider_fluid.rho - (2. * RHO0)) * u / q;
+                    let wv = w0 * CV;
 
-                fpress += -direction_unnormalised.normalize_or_zero()
-                    * (fluid.pressure + collider_fluid.pressure)
-                    / (2. * collider_fluid.rho)
-                    * SPIKY_GRAD
-                    * (precomputation * precomputation); // CHANGED FROM to the power of 3, instead of 2, chatgpt, make sure this is right.
+                    let dvx = velocity.x - collider_velocity.x;
+                    let dvy = velocity.y - collider_velocity.y;
 
-                //fvisc += VISC;
+                    acceleration_accumulator.0.x += wp * dx + wv * dvx;
+                    acceleration_accumulator.0.y += wp * dy + wv * dvy;
+                }
             });
+            //info!("acceleration_delta: {}", acceleration_accumulator.0);
+        },
+    );
+}
 
-            info!("fpress: {:.2}", fpress);
-            info!("fvisc: {}", fvisc);
-            info!("rho: {}", fluid.rho);
-            info!("time_delta_seconds: {}", time_delta_seconds);
-            info!("something: {}", time_delta_seconds * fpress / fluid.rho);
-
-            //velocity.0 += time_delta_seconds * (fpress + fvisc) / fluid.rho;
+#[system(Update::Fluid::ApplyAcceleration)]
+fn apply_acceleration(
+    mut particles: Query<(&mut LinearVelocity, &AccelerationAccumulator)>,
+    time: Res<Time>,
+) {
+    let time_delta_seconds = time.delta_secs();
+    particles
+        .par_iter_mut()
+        .for_each(|(mut velocity, acceleration_accumulator)| {
+            velocity.0 += acceleration_accumulator.0 * time_delta_seconds;
         });
 }
