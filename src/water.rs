@@ -58,6 +58,7 @@ fn spawn(
         .with_child((Sensor, Collider::circle(H), CollidingEntities::default()));
 }
 
+// All the fluid physics is taken from https://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 /*
 char* fname; /* File name */
 int nframes; /* Number of frames */
@@ -97,8 +98,7 @@ params->g = 9.8;
 const MASS: f32 = 10.;
 
 // Unsure.
-// Appears to not effect rho that much?
-const H: f32 = 40.;
+const H: f32 = 30.;
 const H2: f32 = H * H;
 const H8: f32 = (H2 * H2) * (H2 * H2);
 
@@ -108,7 +108,7 @@ const CP: f32 = 15. * K;
 const CV: f32 = -40. * MU;
 
 // Unsure.
-const RHO0: f32 = 0.003;
+const RHO0: f32 = 0.006;
 // Unsure.
 const K: f32 = 1000.;
 // Unsure.
@@ -155,7 +155,7 @@ fn pressure(
                 if z > 0. {
                     let rho_ij = C * z * z * z;
                     // We can only do one of the 2 operations. Consider doubling the value, to make up for the missed return stroke?
-                    fluid.rho += rho_ij;
+                    fluid.rho += rho_ij * 2.;
                 }
             });
             //info!("rho: {}", fluid.rho)
@@ -206,8 +206,8 @@ fn get_acceleration(
                     let dvx = velocity.x - collider_velocity.x;
                     let dvy = velocity.y - collider_velocity.y;
 
-                    acceleration_accumulator.0.x += wp * dx + wv * dvx;
-                    acceleration_accumulator.0.y += wp * dy + wv * dvy;
+                    let acceleration = Vec2::new(wp * dx + wv * dvx, wp * dy + wv * dvy);
+                    acceleration_accumulator.0 += acceleration.clamp(Vec2::splat(-100.), Vec2::splat(100.));
                 }
             });
             //info!("acceleration_delta: {}", acceleration_accumulator.0);

@@ -23,7 +23,7 @@ bevy = { version = "0.15.1", default-features = false, features = [
 ] }
 leafwing-input-manager = "0.16"
 winit = "0.30"
-avian2d = "0.2.1"
+avian2d = { version = "0.2.1", default-features = false, features = ["simd", "parallel", "debug-plugin", "parry-f32", "f32", "2d"] }
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
