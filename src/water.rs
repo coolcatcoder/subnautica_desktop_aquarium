@@ -54,8 +54,16 @@ fn spawn(
                 ..default()
             },
             LockedAxes::ROTATION_LOCKED,
+            CollisionLayers::new(Layer::Fluid, Layer::Default)
         ))
         .with_child((Sensor, Collider::circle(H), CollidingEntities::default()));
+}
+
+#[derive(PhysicsLayer, Default)]
+enum Layer {
+    #[default]
+    Default,
+    Fluid,
 }
 
 // All the fluid physics is taken from https://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
@@ -92,8 +100,6 @@ params->g = 9.8;
 }
 */
 
-// NAN means I'm not sure. Further research required.
-
 // Unsure.
 const MASS: f32 = 10.;
 
@@ -108,7 +114,7 @@ const CP: f32 = 15. * K;
 const CV: f32 = -40. * MU;
 
 // Unsure.
-const RHO0: f32 = 0.006;
+const RHO0: f32 = 5.;
 // Unsure.
 const K: f32 = 1000.;
 // Unsure.
