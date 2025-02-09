@@ -38,6 +38,7 @@ fn draw_terrain(
     settings: Res<DrawSettings>,
     images: Res<Assets<Image>>,
     tool_bar_hovered: Res<ToolBarHovered>,
+    mut set_tile: EventWriter<SetTile>,
 ) {
     if !matches!(*tool, Tool::Draw) {
         return;
@@ -51,7 +52,7 @@ fn draw_terrain(
         return;
     }
 
-    let Some(cursor_translation) = cursor_translation.0 else {
+    let Some(cursor_translation) = &cursor_translation.0 else {
         return;
     };
 
@@ -64,15 +65,30 @@ fn draw_terrain(
     // If we just clicked somewhere, we spawn a terrain point, and set the previous translation to be at the cursor.
     // If we don't do this, then we get a cool straight line effect.
     if actions.just_pressed(&Action::Use) {
-        spawn_terrain(&mut commands, cursor_translation, &settings, size);
-        previous_translation.0 = cursor_translation;
+        spawn_terrain(
+            &mut commands,
+            cursor_translation.translation,
+            &settings,
+            size,
+        );
+        set_tile.send(SetTile {
+            window: cursor_translation.window,
+
+            translation: cursor_translation.translation,
+            tile_config: TileConfig::Solid {
+                colour: Color::BLACK,
+            },
+        });
+        previous_translation.0 = cursor_translation.translation;
     }
 
     let radius_average_squished = (size.x + size.y) / 2. * settings.scale * settings.squish;
 
     // Create points until we reach the cursor translation.
     loop {
-        let distance_squared = cursor_translation.distance_squared(previous_translation.0);
+        let distance_squared = cursor_translation
+            .translation
+            .distance_squared(previous_translation.0);
 
         if distance_squared < (radius_average_squished * radius_average_squished) {
             break;
@@ -81,7 +97,7 @@ fn draw_terrain(
         let distance = distance_squared.sqrt();
 
         // Gets, and normalises the direction.
-        let direction = (cursor_translation - previous_translation.0) / distance;
+        let direction = (cursor_translation.translation - previous_translation.0) / distance;
 
         // Move the previous translation in the correct direction.
         previous_translation.0 += direction * radius_average_squished;
@@ -114,21 +130,21 @@ struct Root;
 
 #[system(Update)]
 fn ui(
+    cursor_translation: Res<CursorTranslation>,
     mut commands: Commands,
-    camera: Option<Single<Entity, With<UiCamera>>>,
     mut finished: Local<bool>,
 ) {
     if *finished {
         return;
     }
 
-    let Some(camera) = camera else {
+    let Some(cursor_translation) = &cursor_translation.0 else {
         return;
     };
 
     *finished = true;
 
-    let mut _root = commands.spawn((Root, TargetCamera(*camera), Node {
+    let mut _root = commands.spawn((Root, TargetCamera(cursor_translation.window), Node {
         display: Display::Flex,
         flex_direction: FlexDirection::Column,
         align_items: AlignItems::Start,

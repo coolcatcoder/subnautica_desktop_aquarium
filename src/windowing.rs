@@ -1,11 +1,8 @@
 use crate::prelude::*;
-use bevy::{
-    window::{CompositeAlphaMode, Monitor, PrimaryWindow, WindowMode},
-    winit::WinitWindows,
-};
+use bevy::window::{CompositeAlphaMode, Monitor, PrimaryWindow, WindowMode};
 
 pub mod prelude {
-    pub use super::Interactable;
+    pub use super::{Interactable, WindowingDone};
 }
 
 #[cfg(target_os = "linux")]
@@ -40,6 +37,11 @@ mod linux {
         commands.insert_resource(Wayland(is_wayland));
     }
 }
+
+/// We use this to work out when the window is finished maximising.
+/// Otherwise we might create the grid using a size that isn't quite maximised.
+#[derive(Component)]
+struct PreviousSize(Option<Vec2>);
 
 #[cfg(target_os = "linux")]
 #[system(Update)]
@@ -99,7 +101,7 @@ fn create_windows(
                     })
                     .id();
 
-                let mut camera = commands.spawn((Camera2d, Camera {
+                let mut camera = commands.spawn((PreviousSize(None), Camera2d, Camera {
                     target: RenderTarget::Window(WindowRef::Entity(window_entity)),
                     ..default()
                 }));
@@ -117,6 +119,11 @@ fn create_windows(
 #[derive(Event)]
 struct SetupWindows(usize);
 
+/// Windowing is fully finished. You can use the cameras how you want.
+#[init]
+#[derive(Event)]
+pub struct WindowingDone;
+
 #[cfg(target_os = "linux")]
 #[system(Update)]
 fn setup_windows(
@@ -124,6 +131,8 @@ fn setup_windows(
     winit_windows: NonSend<WinitWindows>,
     mut maybe_quantity: Local<Option<usize>>,
     wayland: Option<Res<linux::Wayland>>,
+    mut extra_frame_done: Local<bool>,
+    mut windowing_done: EventWriter<WindowingDone>,
 ) {
     if let Some(setup_windows) = setup_windows.read().next() {
         *maybe_quantity = Some(setup_windows.0);
@@ -154,6 +163,7 @@ fn setup_windows(
 
     *maybe_quantity = None;
     info!("Windows are setup!");
+    windowing_done.send(WindowingDone);
 }
 
 /// Sets whether you can click on this window, or if it goes through.

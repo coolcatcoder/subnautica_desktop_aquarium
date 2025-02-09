@@ -1,11 +1,19 @@
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{Tool, ToolBarHovered, UiCamera};
+    pub use super::{Tool, ToolBarHovered};
 }
 
-#[derive(Component)]
-pub struct UiCamera;
+#[system(Update)]
+fn target_camera(mut target_cameras: Query<&mut TargetCamera>, cursor_translation: Res<CursorTranslation>) {
+    let Some(cursor_translation) = &cursor_translation.0 else {
+        return;
+    };
+
+    target_cameras.iter_mut().for_each(|mut target_camera| {
+        target_camera.0 = cursor_translation.window;
+    });
+}
 
 /// The selected tool.
 /// This does not include their settings. That is stored separately, so that settings can persist between tool changes.
@@ -33,19 +41,19 @@ fn tool_bar_setup(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut finished: Local<bool>,
-    camera: Option<Single<Entity, With<UiCamera>>>,
+    cursor_translation: Res<CursorTranslation>,
 ) {
     if *finished {
         return;
     }
 
-    let Some(camera) = camera else {
+    let Some(cursor_translation) = &cursor_translation.0 else {
         return;
     };
 
     *finished = true;
 
-    let mut root = commands.spawn((Root, TargetCamera(*camera), Node {
+    let mut root = commands.spawn((Root, TargetCamera(cursor_translation.window), Node {
         display: Display::Flex,
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Start,

@@ -32,9 +32,10 @@ fn spawn(
         return;
     }
 
-    let Some(translation) = cursor_translation.0 else {
+    let Some(cursor_translation) = &cursor_translation.0 else {
         return;
     };
+    let translation = cursor_translation.translation;
 
     commands
         .spawn((
@@ -54,7 +55,7 @@ fn spawn(
                 ..default()
             },
             LockedAxes::ROTATION_LOCKED,
-            CollisionLayers::new(Layer::Fluid, Layer::Default)
+            CollisionLayers::new(Layer::Fluid, Layer::Default),
         ))
         .with_child((Sensor, Collider::circle(H), CollidingEntities::default()));
 }
@@ -213,7 +214,8 @@ fn get_acceleration(
                     let dvy = velocity.y - collider_velocity.y;
 
                     let acceleration = Vec2::new(wp * dx + wv * dvx, wp * dy + wv * dvy);
-                    acceleration_accumulator.0 += acceleration.clamp(Vec2::splat(-100.), Vec2::splat(100.));
+                    acceleration_accumulator.0 +=
+                        acceleration.clamp(Vec2::splat(-100.), Vec2::splat(100.));
                 }
             });
             //info!("acceleration_delta: {}", acceleration_accumulator.0);

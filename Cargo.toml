@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 bevy_registration = "0.2.4"
-bevy = { version = "0.15.1", default-features = false, features = [
+bevy = { version = "0.15.2", default-features = false, features = [
     "bevy_asset",
     "bevy_core_pipeline",
     "bevy_render",
@@ -22,8 +22,10 @@ bevy = { version = "0.15.1", default-features = false, features = [
     "wayland",
 ] }
 leafwing-input-manager = "0.16"
-winit = "0.30"
+winit = "0.30.9"
 avian2d = { version = "0.2.1", default-features = false, features = ["simd", "parallel", "debug-plugin", "parry-f32", "f32", "2d"] }
+foldhash = "0.1.4"
+ordered-float = "4.6.0"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
