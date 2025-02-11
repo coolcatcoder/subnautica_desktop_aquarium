@@ -235,3 +235,24 @@ fn apply_acceleration(
             velocity.0 += acceleration_accumulator.0 * time_delta_seconds;
         });
 }
+
+#[derive(Default)]
+struct One {
+    blah: f32,
+}
+
+#[derive(Default)]
+struct Two {
+    foo: f32,
+}
+
+
+fn experiment() {
+    let mut foo = [(One::default(), Two::default()), (One::default(), Two::default())];
+
+    let one = &mut foo[0].0;
+    let two = &foo[1].1;
+
+    info!("{}", one.blah);
+    info!("{}", two.foo);
+}

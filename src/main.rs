@@ -3,7 +3,7 @@ mod prelude {
     pub use crate::windowing_linux::prelude::*;
     pub use crate::{
         actions::prelude::*, cursor_translation::prelude::*, grid::prelude::*,
-        interactable::prelude::*, tools::prelude::*,
+        interactable::prelude::*, tools::prelude::*, physics::prelude::*,
     };
     pub use avian2d::prelude::*;
     pub use bevy::{
@@ -27,6 +27,7 @@ mod grid;
 mod interactable;
 mod tools;
 mod water;
+mod physics;
 
 //mod windowing;
 #[cfg(target_os = "linux")]
