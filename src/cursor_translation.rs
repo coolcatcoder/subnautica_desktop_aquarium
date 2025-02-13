@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{CursorTranslation, InnerCursorTranslation};
+    pub use super::CursorTranslation;
 }
 
 /// The world space cursor translation and the camera it is on.

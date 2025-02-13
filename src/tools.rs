@@ -5,7 +5,10 @@ pub mod prelude {
 }
 
 #[system(Update)]
-fn target_camera(mut target_cameras: Query<&mut TargetCamera>, cursor_translation: Res<CursorTranslation>) {
+fn target_camera(
+    mut target_cameras: Query<&mut TargetCamera>,
+    cursor_translation: Res<CursorTranslation>,
+) {
     let Some(cursor_translation) = &cursor_translation.0 else {
         return;
     };

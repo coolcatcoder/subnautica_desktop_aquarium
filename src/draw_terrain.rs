@@ -38,7 +38,7 @@ fn draw_terrain(
     settings: Res<DrawSettings>,
     images: Res<Assets<Image>>,
     tool_bar_hovered: Res<ToolBarHovered>,
-    mut set_tile: EventWriter<SetTile>,
+    mut grids: Query<&mut Grid>,
 ) {
     if !matches!(*tool, Tool::Draw) {
         return;
@@ -71,14 +71,14 @@ fn draw_terrain(
             &settings,
             size,
         );
-        set_tile.send(SetTile {
-            window: cursor_translation.window,
-
-            translation: cursor_translation.translation,
-            tile_config: TileConfig::Solid {
-                colour: Color::BLACK,
-            },
-        });
+        if let Ok(mut grid) = grids.get_mut(cursor_translation.window) {
+            if let Some(index) = grid.translation_to_index(cursor_translation.translation) {
+                grid.grid[index].solid = Some(Solid {
+                    colour: Srgba::BLACK,
+                    render_entity: None,
+                });
+            }
+        }
         previous_translation.0 = cursor_translation.translation;
     }
 
@@ -103,6 +103,14 @@ fn draw_terrain(
         previous_translation.0 += direction * radius_average_squished;
 
         spawn_terrain(&mut commands, previous_translation.0, &settings, size);
+        if let Ok(mut grid) = grids.get_mut(cursor_translation.window) {
+            if let Some(index) = grid.translation_to_index(previous_translation.0) {
+                grid.grid[index].solid = Some(Solid {
+                    colour: Srgba::BLACK,
+                    render_entity: None,
+                });
+            }
+        }
     }
 }
 

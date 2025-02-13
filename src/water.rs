@@ -246,9 +246,11 @@ struct Two {
     foo: f32,
 }
 
-
 fn experiment() {
-    let mut foo = [(One::default(), Two::default()), (One::default(), Two::default())];
+    let mut foo = [
+        (One::default(), Two::default()),
+        (One::default(), Two::default()),
+    ];
 
     let one = &mut foo[0].0;
     let two = &foo[1].1;

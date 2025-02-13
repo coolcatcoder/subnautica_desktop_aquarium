@@ -6,16 +6,16 @@ pub mod prelude {
 
 #[derive(Component)]
 pub struct Grid {
-    origin: Vec2,
+    pub origin: Vec2,
     // size in cells
-    grid_size: UVec2,
+    pub grid_size: UVec2,
 
     pub grid: Box<[Cell]>,
 }
 
 impl Grid {
     /// Convert from a translation in world space to an index in grid.
-    fn translation_to_index(&self, translation: Vec2) -> Option<usize> {
+    pub fn translation_to_index(&self, translation: Vec2) -> Option<usize> {
         if translation.x < self.origin.x || translation.y < self.origin.y {
             return None;
         }
@@ -30,13 +30,15 @@ impl Grid {
             return None;
         }
 
-        let float_index = corrected_translation.y.trunc() * self.grid_size.x as f32
-            + corrected_translation.x.trunc();
-        //info!(float_index);
-        Some(float_index.trunc() as usize)
+        let grid_translation = corrected_translation.round().as_uvec2();
+
+        let index = grid_translation.y * self.grid_size.x + grid_translation.x;
+        Some(index as usize)
     }
 
-    pub fn index_to_translation(&self, index: usize) -> Option<Vec2> {
+    /// Converts the grid index to a translation.
+    /// Returns None if the index is >= self.grid.len().
+    fn index_to_translation(&self, index: usize) -> Option<Vec2> {
         if index >= self.grid.len() {
             return None;
         }
@@ -44,10 +46,19 @@ impl Grid {
         let float_index = index as f32;
         let grid_width = self.grid_size.x as f32;
 
+        Some(unsafe { Grid::index_to_translation_unchecked(grid_width, self.origin, float_index) })
+    }
+
+    /// Converts the grid index to a translation.
+    /// This does not check if the index is < len().
+    /// Does not ask for &self, so that this can be used while iterating the grid.
+    pub unsafe fn index_to_translation_unchecked(
+        grid_width: f32,
+        grid_origin: Vec2,
+        float_index: f32,
+    ) -> Vec2 {
         // We add origin at the end to put it back in world space.
-        let translation =
-            Vec2::new(float_index % grid_width, float_index / grid_width) * Cell::SIZE + self.origin;
-        Some(translation)
+        Vec2::new(float_index % grid_width, (float_index / grid_width).floor()) * Cell::SIZE + grid_origin
     }
 }
 
@@ -108,7 +119,9 @@ fn setup(
             origin,
             grid_size: UVec2::new(grid_width as u32, grid_height as u32),
 
-            grid: std::iter::repeat_with(|| Cell::new()).take(grid_height * grid_width).collect(),
+            grid: std::iter::repeat_with(|| Cell::EMPTY)
+                .take(grid_height * grid_width)
+                .collect(),
             //grid: vec![Cell::new(); grid_height * grid_width].into_boxed_slice(),
         });
     });
