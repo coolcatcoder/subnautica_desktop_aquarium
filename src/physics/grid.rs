@@ -7,15 +7,22 @@ pub mod prelude {
 #[derive(Component)]
 pub struct Grid {
     pub origin: Vec2,
-    // size in cells
+    /// size in cells
     pub grid_size: UVec2,
 
-    pub grid: Box<[Cell]>,
+    /// The grid cells are stored as components on an entity.
+    /// This means we don't have to deal with unsafety. Potentially at the cost of performance.
+    cells: Box<[Entity]>,
 }
 
 impl Grid {
+    pub fn get(&self, translation: Vec2) -> Option<Entity> {
+        let index = self.translation_to_index(translation)?;
+        self.cells.get(index).copied()
+    }
+
     /// Convert from a translation in world space to an index in grid.
-    pub fn translation_to_index(&self, translation: Vec2) -> Option<usize> {
+    fn translation_to_index(&self, translation: Vec2) -> Option<usize> {
         if translation.x < self.origin.x || translation.y < self.origin.y {
             return None;
         }
@@ -39,7 +46,7 @@ impl Grid {
     /// Converts the grid index to a translation.
     /// Returns None if the index is >= self.grid.len().
     fn index_to_translation(&self, index: usize) -> Option<Vec2> {
-        if index >= self.grid.len() {
+        if index >= self.cells.len() {
             return None;
         }
 
@@ -58,7 +65,8 @@ impl Grid {
         float_index: f32,
     ) -> Vec2 {
         // We add origin at the end to put it back in world space.
-        Vec2::new(float_index % grid_width, (float_index / grid_width).floor()) * Cell::SIZE + grid_origin
+        Vec2::new(float_index % grid_width, (float_index / grid_width).floor()) * Cell::SIZE
+            + grid_origin
     }
 }
 
@@ -115,14 +123,22 @@ fn setup(
         let grid_height = (height / Cell::SIZE).ceil() as usize;
         let grid_width = (width / Cell::SIZE).ceil() as usize;
 
+        let cells = (0..(grid_height * grid_width))
+            .map(|index| {
+                // SAFETY: Index is within the grid.
+                let translation = unsafe {
+                    Grid::index_to_translation_unchecked(grid_width as f32, origin, index as f32)
+                };
+
+                commands.spawn(Cell { index, translation }).id()
+            })
+            .collect();
+
         commands.entity(window_entity).insert(Grid {
             origin,
             grid_size: UVec2::new(grid_width as u32, grid_height as u32),
 
-            grid: std::iter::repeat_with(|| Cell::EMPTY)
-                .take(grid_height * grid_width)
-                .collect(),
-            //grid: vec![Cell::new(); grid_height * grid_width].into_boxed_slice(),
+            cells,
         });
     });
 }

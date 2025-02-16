@@ -38,7 +38,7 @@ fn draw_terrain(
     settings: Res<DrawSettings>,
     images: Res<Assets<Image>>,
     tool_bar_hovered: Res<ToolBarHovered>,
-    mut grids: Query<&mut Grid>,
+    mut set_solid: EventWriter<SetSolid>,
 ) {
     if !matches!(*tool, Tool::Draw) {
         return;
@@ -65,20 +65,11 @@ fn draw_terrain(
     // If we just clicked somewhere, we spawn a terrain point, and set the previous translation to be at the cursor.
     // If we don't do this, then we get a cool straight line effect.
     if actions.just_pressed(&Action::Use) {
-        spawn_terrain(
-            &mut commands,
-            cursor_translation.translation,
-            &settings,
-            size,
-        );
-        if let Ok(mut grid) = grids.get_mut(cursor_translation.window) {
-            if let Some(index) = grid.translation_to_index(cursor_translation.translation) {
-                grid.grid[index].solid = Some(Solid {
-                    colour: Srgba::BLACK,
-                    render_entity: None,
-                });
-            }
-        }
+        set_solid.send(SetSolid {
+            window: cursor_translation.window,
+            translation: cursor_translation.translation,
+            colour: Srgba::BLACK,
+        });
         previous_translation.0 = cursor_translation.translation;
     }
 
@@ -102,18 +93,15 @@ fn draw_terrain(
         // Move the previous translation in the correct direction.
         previous_translation.0 += direction * radius_average_squished;
 
-        spawn_terrain(&mut commands, previous_translation.0, &settings, size);
-        if let Ok(mut grid) = grids.get_mut(cursor_translation.window) {
-            if let Some(index) = grid.translation_to_index(previous_translation.0) {
-                grid.grid[index].solid = Some(Solid {
-                    colour: Srgba::BLACK,
-                    render_entity: None,
-                });
-            }
-        }
+        set_solid.send(SetSolid {
+            window: cursor_translation.window,
+            translation: previous_translation.0,
+            colour: Srgba::BLACK,
+        });
     }
 }
 
+/// Because there are 2 spots we need to spawn terrain, we have a dedicated function.
 fn spawn_terrain(commands: &mut Commands, translation: Vec2, settings: &DrawSettings, size: Vec2) {
     let mut terrain = commands.spawn((
         Transform::from_translation(Vec3::new(translation.x, translation.y, settings.depth)),

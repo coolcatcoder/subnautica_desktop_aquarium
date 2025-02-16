@@ -3776,6 +3776,7 @@ dependencies = [
  "foldhash",
  "leafwing-input-manager",
  "ordered-float",
+ "paste",
  "winit",
 ]
 
