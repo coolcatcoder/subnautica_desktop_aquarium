@@ -131,7 +131,7 @@ struct Fluid {
 #[derive(Component, Default)]
 struct AccelerationAccumulator(Vec2);
 
-#[system(Update::Fluid::Pressure)]
+//#[system(Update::Fluid::Pressure)]
 fn pressure(
     mut particles: Query<(&mut Fluid, &Transform, &Children)>,
     collisions: Query<&CollidingEntities>,
@@ -169,7 +169,7 @@ fn pressure(
         });
 }
 
-#[system(Update::Fluid::GetAcceleration)]
+//#[system(Update::Fluid::GetAcceleration)]
 fn get_acceleration(
     mut particles: Query<(
         &mut AccelerationAccumulator,
@@ -223,7 +223,7 @@ fn get_acceleration(
     );
 }
 
-#[system(Update::Fluid::ApplyAcceleration)]
+//#[system(Update::Fluid::ApplyAcceleration)]
 fn apply_acceleration(
     mut particles: Query<(&mut LinearVelocity, &AccelerationAccumulator)>,
     time: Res<Time>,

@@ -6,7 +6,7 @@ pub mod prelude {
 
 #[derive(Component)]
 pub struct Grid {
-    pub origin: Vec2,
+    origin: Vec2,
     /// size in cells
     pub grid_size: UVec2,
 
@@ -21,25 +21,34 @@ impl Grid {
         self.cells.get(index).copied()
     }
 
-    /// Convert from a translation in world space to an index in grid.
+    /// Convert from a translation in world space to an index in cells.
     fn translation_to_index(&self, translation: Vec2) -> Option<usize> {
-        if translation.x < self.origin.x || translation.y < self.origin.y {
+        Self::translation_to_index_no_self(self.origin, self.grid_size, translation)
+    }
+
+    /// Convert from a translation in world space to an index.
+    /// No Self.
+    fn translation_to_index_no_self(
+        grid_origin: Vec2,
+        grid_size: UVec2,
+        translation: Vec2,
+    ) -> Option<usize> {
+        if translation.x < grid_origin.x || translation.y < grid_origin.y {
             return None;
         }
 
         // We remove origin so that (0,0) is the origin for our translation.
-        let corrected_translation = (translation - self.origin) / Cell::SIZE;
-        //info!("{}", corrected_translation);
+        // We then divide by Cell::SIZE so that 1 unit is 1 cell.
+        // Rounding makes sure that the closest cell is found.
+        let grid_translation = ((translation - grid_origin) / Cell::SIZE)
+            .round()
+            .as_uvec2();
 
-        if corrected_translation.x >= self.grid_size.x as f32
-            || corrected_translation.y >= self.grid_size.y as f32
-        {
+        if grid_translation.x >= grid_size.x || grid_translation.y >= grid_size.y {
             return None;
         }
 
-        let grid_translation = corrected_translation.round().as_uvec2();
-
-        let index = grid_translation.y * self.grid_size.x + grid_translation.x;
+        let index = grid_translation.y * grid_size.x + grid_translation.x;
         Some(index as usize)
     }
 
@@ -73,7 +82,6 @@ impl Grid {
 #[system(Update)]
 fn setup(
     mut commands: Commands,
-    windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     mut finished: Local<bool>,
     mut windowing_done: EventReader<WindowingDone>,
@@ -93,16 +101,10 @@ fn setup(
         let RenderTarget::Window(WindowRef::Entity(window_entity)) = camera.target else {
             return;
         };
-        let Ok(window) = windows.get(window_entity) else {
-            return;
-        };
 
         let Some(window_winit) = winit_windows.get_window(window_entity) else {
             return;
         };
-
-        //let height = window.height();
-        //let width = window.width();
 
         let size = window_winit
             .outer_size()
@@ -113,30 +115,74 @@ fn setup(
         let origin = match camera.ndc_to_world(global_transform, Vec3::new(-1., -1., 0.)) {
             Some(origin) => origin.xy(),
             None => {
-                //error!("{:?}", error);
+                error!("Something contained NaN.");
                 return;
             }
         };
-        //let origin = Vec2::new(width, height)/2;
 
         // Divide the height and width by the size, to get the number of cells needed.
         let grid_height = (height / Cell::SIZE).ceil() as usize;
         let grid_width = (width / Cell::SIZE).ceil() as usize;
 
-        let cells = (0..(grid_height * grid_width))
-            .map(|index| {
+        let grid_size = UVec2::new(grid_width as u32, grid_height as u32);
+
+        let cell_entities: Box<[Entity]> = (0..(grid_height * grid_width))
+            .map(|_| commands.spawn_empty().id())
+            .collect();
+
+        let cells = cell_entities
+            .iter()
+            .enumerate()
+            .map(|(index, cell_entity)| {
+                let cell_entity = *cell_entity;
+
                 // SAFETY: Index is within the grid.
                 let translation = unsafe {
                     Grid::index_to_translation_unchecked(grid_width as f32, origin, index as f32)
                 };
 
-                commands.spawn(Cell { index, translation }).id()
+                let top = Grid::translation_to_index_no_self(
+                    origin,
+                    grid_size,
+                    translation + Vec2::new(0., Cell::SIZE),
+                )
+                .and_then(|index| cell_entities.get(index).copied());
+                let left = Grid::translation_to_index_no_self(
+                    origin,
+                    grid_size,
+                    translation + Vec2::new(-Cell::SIZE, 0.),
+                )
+                .and_then(|index| cell_entities.get(index).copied());
+                let right = Grid::translation_to_index_no_self(
+                    origin,
+                    grid_size,
+                    translation + Vec2::new(Cell::SIZE, 0.),
+                )
+                .and_then(|index| cell_entities.get(index).copied());
+                let bottom = Grid::translation_to_index_no_self(
+                    origin,
+                    grid_size,
+                    translation + Vec2::new(0., -Cell::SIZE),
+                )
+                .and_then(|index| cell_entities.get(index).copied());
+
+                commands
+                    .entity(cell_entity)
+                    .insert(Cell {
+                        grid: window_entity,
+
+                        index,
+                        translation,
+
+                        nearest_4: [top, left, right, bottom],
+                    })
+                    .id()
             })
             .collect();
 
         commands.entity(window_entity).insert(Grid {
             origin,
-            grid_size: UVec2::new(grid_width as u32, grid_height as u32),
+            grid_size,
 
             cells,
         });

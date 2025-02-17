@@ -72,21 +72,18 @@ fn render(
             info!("New colour material.");
         }
 
-        commands
-            .entity(cell_entity)
-            .insert((
-                Solid,
-                render_layers.clone(),
-                Mesh2d(meshes_and_materials.square_mesh.clone()),
-                MeshMaterial2d(
-                    meshes_and_materials
-                        .colour_materials
-                        .get(&colour_not_nan)
-                        .unwrap()
-                        .clone(),
-                ),
-                Transform::from_translation(Vec3::new(cell.translation.x, cell.translation.y, 0.)),
-            ))
-            .id();
+        commands.entity(cell_entity).insert((
+            Solid,
+            render_layers.clone(),
+            Mesh2d(meshes_and_materials.square_mesh.clone()),
+            MeshMaterial2d(
+                meshes_and_materials
+                    .colour_materials
+                    .get(&colour_not_nan)
+                    .unwrap()
+                    .clone(),
+            ),
+            Transform::from_translation(Vec3::new(cell.translation.x, cell.translation.y, 0.)),
+        ));
     });
 }

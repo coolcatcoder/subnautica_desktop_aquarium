@@ -1,18 +1,22 @@
-use std::{marker::PhantomData, mem::offset_of};
-
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::Cell;
-    pub use crate::disjoint_iterator;
 }
 
 /// A grid cell.
+/// I don't fully know how this is going to work.
 #[derive(Component)]
+#[require(Fluid)]
 pub struct Cell {
+    pub grid: Entity,
+
     pub index: usize,
-    // TODO: Do we just want the Transform component?
     pub translation: Vec2,
+
+    /// The 4 nearest cells.
+    /// Ordered top, left, right, bottom.
+    pub nearest_4: [Option<Entity>; 4],
 }
 
 impl Cell {

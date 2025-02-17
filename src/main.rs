@@ -36,9 +36,7 @@ schedule! {
     Update (
         [run_every(Duration::from_secs_f32(1. / 60.))]
         Fluid (
-            Pressure,
-            GetAcceleration,
-            ApplyAcceleration
+            VelocityDivergence,
         )
     )
 }
