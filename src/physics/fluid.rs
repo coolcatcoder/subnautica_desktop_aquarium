@@ -30,7 +30,7 @@ fn debug(
             gizmos.rect_2d(
                 cell.translation,
                 Vec2::splat(Cell::SIZE * 0.9),
-                Srgba::new(velocity_divergence.0 * 0.25, pressure.0 * 0.25, 0., 1.),
+                Srgba::new(velocity_divergence.0 * 0.25, pressure.0 * 0.1, 0., 1.),
             );
 
             gizmos.arrow_2d(cell.translation, cell.translation + velocity.0, Srgba::BLUE);
@@ -76,8 +76,8 @@ struct PressureUpdate(f32);
 fn solve(
     mut calculate_and_update: ParamSet<(
         (
-            Query<(&Cell, &mut PressureUpdate, &VelocityDivergence)>,
-            Query<&Pressure>,
+            Query<(&Cell, &mut PressureUpdate, &VelocityDivergence, &Pressure)>,
+            Query<&Pressure, Without<Solid>>,
         ),
         Query<(&mut Pressure, &PressureUpdate)>,
     )>,
@@ -86,13 +86,13 @@ fn solve(
         let (mut pressure_update, pressure) = calculate_and_update.p0();
 
         pressure_update.par_iter_mut().for_each(
-            |(cell, mut pressure_update, velocity_divergence)| {
+            |(cell, mut pressure_update, velocity_divergence, center_pressure)| {
                 let mut sum_of_neighbours = 0.;
                 cell.nearest_4.iter().for_each(|entity| {
                     let pressure = entity
                         .and_then(|entity| pressure.get(entity).ok())
                         .map(|pressure| pressure.0)
-                        .unwrap_or(0.);
+                        .unwrap_or(center_pressure.0);
                     sum_of_neighbours += pressure;
                 });
 
@@ -126,5 +126,8 @@ fn gravity(mut velocity: Query<&mut Velocity>, time: Res<Time>) {
     let time_delta_seconds = time.delta_secs();
     velocity.par_iter_mut().for_each(|mut velocity| {
         velocity.0.y -= 5. * time_delta_seconds;
+
+        let velocity_delta = velocity.0.abs() * velocity.0 * 0.005 * time_delta_seconds;
+        velocity.0 -= velocity_delta;
     });
 }
