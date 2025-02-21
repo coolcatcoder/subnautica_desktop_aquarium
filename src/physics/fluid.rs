@@ -7,8 +7,35 @@ pub mod prelude {
 }
 
 #[derive(Component, Default)]
-#[require(Velocity)]
+#[require(Velocity, Pressure)]
 pub struct Fluid;
+
+#[system(Update)]
+fn debug(
+    cells: Query<(&Cell, &Velocity, &VelocityDivergence, &Pressure)>,
+    grids: Query<&RenderLayers>,
+    mut gizmos: Gizmos,
+) {
+    cells
+        .iter()
+        .for_each(|(cell, velocity, velocity_divergence, pressure)| {
+            let Ok(grid) = grids.get(cell.grid) else {
+                return;
+            };
+
+            if *grid != gizmos.config.render_layers {
+                return;
+            }
+
+            gizmos.rect_2d(
+                cell.translation,
+                Vec2::splat(Cell::SIZE * 0.9),
+                Srgba::new(velocity_divergence.0 * 0.25, pressure.0 * 0.25, 0., 1.),
+            );
+
+            gizmos.arrow_2d(cell.translation, cell.translation + velocity.0, Srgba::BLUE);
+        });
+}
 
 #[derive(Component, Default)]
 #[require(VelocityDivergence)]
@@ -38,26 +65,49 @@ fn velocity_divergence(
         });
 }
 
-// pub struct Fluid {
-//     pub velocity: Vec2,
+#[derive(Component, Default)]
+#[require(PressureUpdate)]
+struct Pressure(f32);
 
-//     pub divergence: f32,
-//     /// Used for updating divergence.
-//     pub divergence_transfer: f32,
+#[derive(Component, Default)]
+struct PressureUpdate(f32);
 
-//     pub pressure: f32,
-// }
+#[system(Update::Fluid::Solve)]
+fn solve(
+    mut calculate_and_update: ParamSet<(
+        (
+            Query<(&Cell, &mut PressureUpdate, &VelocityDivergence)>,
+            Query<&Pressure>,
+        ),
+        Query<(&mut Pressure, &PressureUpdate)>,
+    )>,
+) {
+    (0..30).for_each(|_| {
+        let (mut pressure_update, pressure) = calculate_and_update.p0();
 
-// impl Fluid {
-//     pub const EMPTY: Self = Self {
-//         velocity: Vec2::ZERO,
+        pressure_update.par_iter_mut().for_each(
+            |(cell, mut pressure_update, velocity_divergence)| {
+                let mut sum_of_neighbours = 0.;
+                cell.nearest_4.iter().for_each(|entity| {
+                    let pressure = entity
+                        .and_then(|entity| pressure.get(entity).ok())
+                        .map(|pressure| pressure.0)
+                        .unwrap_or(0.);
+                    sum_of_neighbours += pressure;
+                });
 
-//         divergence: 0.,
-//         divergence_transfer: 0.,
+                pressure_update.0 = (sum_of_neighbours - velocity_divergence.0) / 4.;
+            },
+        );
 
-//         pressure: 0.,
-//     };
-// }
+        calculate_and_update
+            .p1()
+            .par_iter_mut()
+            .for_each(|(mut pressure, pressure_update)| {
+                pressure.0 = pressure_update.0;
+            });
+    });
+}
 
 /// Calculates the divergence.
 /// Nearest 4 is ordered top, left, right, bottom.
@@ -69,4 +119,12 @@ fn divergence(nearest_4: [Vec2; 4]) -> f32 {
 /// Nearest 4 is ordered top, left, right, bottom.
 fn gradient(nearest_4: [f32; 4]) -> Vec2 {
     Vec2::new(nearest_4[2] - nearest_4[1], nearest_4[0] - nearest_4[3])
+}
+
+#[system(Update::Fluid::Forces)]
+fn gravity(mut velocity: Query<&mut Velocity>, time: Res<Time>) {
+    let time_delta_seconds = time.delta_secs();
+    velocity.par_iter_mut().for_each(|mut velocity| {
+        velocity.0.y -= 5. * time_delta_seconds;
+    });
 }

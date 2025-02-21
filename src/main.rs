@@ -34,9 +34,11 @@ mod windowing_linux;
 
 schedule! {
     Update (
-        [run_every(Duration::from_secs_f32(1. / 60.))]
+        [run_every(Duration::from_secs_f32(1. / 30.))]
         Fluid (
             VelocityDivergence,
+            Solve,
+            Forces,
         )
     )
 }
